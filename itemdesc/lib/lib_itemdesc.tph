@@ -7,23 +7,27 @@ DEFINE_PATCH_FUNCTION itemdesc BEGIN
 	PATCH_IF desc_strref<=0 BEGIN
 		READ_LONG 0x50 desc_strref
 	END
-	GET_STRREF desc_strref desc
-	INNER_PATCH "%desc%" BEGIN
-		LPF itemdesc_get_desc_data RET special_string thac0_string damage_string END
-	END
-	INNER_PATCH_SAVE desc "%desc%" BEGIN
-		LPF itemdesc_reset END
-	END
-	// make string
-	PATCH_IF enhanced_edition BEGIN
-		LPF itemdesc_make_ee_block RET block END
+	PATCH_IF desc_strref<=0 BEGIN
+		PATCH_WARN "itemdesc: Unable to update the description for %SOURCE_RES%.itm as it doesn't have one"
 	END ELSE BEGIN
-		LPF itemdesc_make_classic_block RET block END
-	END
-	SPRINT desc "%desc%%block%"
-	// patch into item
-	INNER_ACTION BEGIN
-		STRING_SET_EVALUATE desc_strref "%desc%"
+		GET_STRREF desc_strref desc
+		INNER_PATCH "%desc%" BEGIN
+			LPF itemdesc_get_desc_data RET special_string thac0_string damage_string END
+		END
+		INNER_PATCH_SAVE desc "%desc%" BEGIN
+			LPF itemdesc_reset END
+		END
+		// make string
+		PATCH_IF enhanced_edition BEGIN
+			LPF itemdesc_make_ee_block RET block END
+		END ELSE BEGIN
+			LPF itemdesc_make_classic_block RET block END
+		END
+		SPRINT desc "%desc%%block%"
+		// patch into item
+		INNER_ACTION BEGIN
+			STRING_SET_EVALUATE desc_strref "%desc%"
+		END
 	END
 
 END

@@ -4,6 +4,9 @@ DEFINE_PATCH_FUNCTION itemdesc BEGIN
 	LPF itemdesc_get_item_data RET_ARRAY itemdesc_item_data=item_data END
 	// initialize strref; get data from it
 	READ_LONG 0x54 desc_strref
+	PATCH_IF desc_strref<=0 BEGIN
+		READ_LONG 0x50 desc_strref
+	END
 	GET_STRREF desc_strref desc
 	INNER_PATCH "%desc%" BEGIN
 		LPF itemdesc_get_desc_data RET special_string thac0_string damage_string END

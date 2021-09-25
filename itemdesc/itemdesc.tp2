@@ -1,0 +1,29 @@
+BACKUP ~weidu_external/backup/itemdesc~
+AUTHOR ~DavidW~
+VERSION ~v1~
+
+ALWAYS
+END
+
+BEGIN "test" DESIGNATED 0
+ 
+INCLUDE "%MOD_FOLDER%/lib/lib_itemdesc.tph"
+OUTER_SPRINT "sfo_tra_loc" "%MOD_FOLDER%/lang" // needs to point to wherever you keep tra files
+LAM itemdesc_initialize
+
+COPY_EXISTING 
+"blun10.itm" override
+"sw1h05.itm" override
+"chan03.itm" override
+"ax1h16.itm" override
+"arow10.itm" override
+"bow09.itm" override
+	LPF itemdesc END
+BUT_ONLY
+	
+
+COPY_EXISTING 
+"plat05.itm" override
+	LPF itemdesc_armor END
+BUT_ONLY
+	

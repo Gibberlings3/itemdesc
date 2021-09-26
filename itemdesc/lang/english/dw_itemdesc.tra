@@ -70,6 +70,15 @@
 @304="Lawful-aligned characters" // I'm not sure the vanilla game uses these, but a mod might
 @305="Chaotic-aligned characters"
 @306="Non-Lawful, Non-Chaotic characters"
+@311="Lawful Good characters"
+@312="Neutral Good characters"
+@313="Chaotic Good characters"
+@314="Lawful Neutral characters"
+@315="True Neutral characters"
+@316="Chaotic Neutral characters"
+@317="Lawful Evil characters"
+@318="Neutral Evil characters"
+@319="Chaotic Evil characters"
 // EE strings
 
 @1001="Armor Class:"

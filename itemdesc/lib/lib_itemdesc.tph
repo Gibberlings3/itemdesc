@@ -40,13 +40,20 @@ DEFINE_PATCH_FUNCTION itemdesc_armor BEGIN
 	LPF itemdesc_get_armor_line RET line END
 	// sub it into string
 	READ_LONG 0x54 desc_strref
-	GET_STRREF desc_strref desc
-	INNER_PATCH_SAVE desc "%desc%" BEGIN
-		REPLACE_TEXTUALLY "^%string_array_armor_class%.*" "%line%"
+	PATCH_IF desc_strref<=0 BEGIN
+		READ_LONG 0x50 desc_strref
 	END
-	// patch into item
-	INNER_ACTION BEGIN
-		STRING_SET_EVALUATE desc_strref "%desc%"
+	PATCH_IF desc_strref<=0 BEGIN
+		PATCH_WARN "itemdesc_armor: Unable to update the description for %SOURCE_RES%.itm as it doesn't have one"
+	END ELSE BEGIN
+		GET_STRREF desc_strref desc
+		INNER_PATCH_SAVE desc "%desc%" BEGIN
+			REPLACE_TEXTUALLY "^%string_array_armor_class%.*" "%line%"
+		END
+		// patch into item
+		INNER_ACTION BEGIN
+			STRING_SET_EVALUATE desc_strref "%desc%"
+		END
 	END
 
 END
@@ -112,7 +119,11 @@ BEGIN
 	END
 	// wipe any strings associated with main entries
 	PHP_EACH string_array AS label=>string BEGIN
-		REPLACE_TEXTUALLY "^%string%.*" ""
+		PATCH_MATCH "%string%" WITH ".*:" BEGIN
+			REPLACE_TEXTUALLY "^%string%.*" ""
+		END
+		DEFAULT
+		END
 	END
 	
 	// clear any surplus spaces
@@ -565,7 +576,7 @@ DEFINE_PATCH_FUNCTION itemdesc_make_usability_string
 BEGIN
 	SPRINT pos_string ""
 	SPRINT neg_string ""
-	PATCH_FOR_EACH type IN class race ge_align lc_align BEGIN
+	PATCH_FOR_EACH type IN class race BEGIN
 		LPF itemdesc_make_usability_string_helper STR_VAR type RET usability_string positive END
 		PATCH_IF positive BEGIN
 			SPRINT pos_string "%pos_string%%usability_string%"
@@ -573,6 +584,24 @@ BEGIN
 			SPRINT neg_string "%neg_string%%usability_string%"		
 		END
 	END
+	LPF itemdesc_make_usability_string_helper STR_VAR type=lc_align RET usability_string_lcn=usability_string positive_lcn=positive END
+	LPF itemdesc_make_usability_string_helper STR_VAR type=ge_align RET usability_string_gen=usability_string positive_gen=positive END
+	PATCH_IF "%usability_string_lcn%" STR_EQ "" BEGIN
+		positive=positive_gen
+		SPRINT usability_string "%usability_string_gen%"
+	END ELSE
+	PATCH_IF "%usability_string_gen%" STR_EQ "" BEGIN
+		positive=positive_lcn
+		SPRINT usability_string "%usability_string_lcn%"
+	END ELSE BEGIN
+		LPF itemdesc_make_usability_string_helper STR_VAR type=combined_align RET usability_string positive END	
+	END
+	PATCH_IF positive BEGIN
+		SPRINT pos_string "%pos_string%%usability_string%"
+	END ELSE BEGIN
+		SPRINT neg_string "%neg_string%%usability_string%"		
+	END
+	
 	SPRINT usability_string ""
 	PATCH_IF "%pos_string%" STR_CMP "" BEGIN
 		SPRINT usability_string "%usability_string%%usable_by_0%%WNL%%pos_string%"
@@ -585,6 +614,7 @@ BEGIN
 END
 
 DEFINE_PATCH_FUNCTION itemdesc_get_usability
+	INT_VAR combined=0
 	STR_VAR flag_array=""
 	RET usable_count
 	RET_ARRAY unusable_by
@@ -592,9 +622,18 @@ BEGIN
 	usable_count=0
 	CLEAR_ARRAY unusable_by
 	READ_LONG 0x1e flags
-	PHP_EACH "%flag_array%" AS class=>flag_num BEGIN
-		bit=2**flag_num
-		SET $unusable_by("%class%")=(flags BAND bit)?1:0
+	PATCH_IF combined BEGIN
+		PHP_EACH combined_align_flags_lcn AS class=>flag_lcn BEGIN
+			SET flag_gen=$combined_align_flags_gen("%class%")
+			bit1=2**flag_lcn
+			bit2=2**flag_gen
+			SET $unusable_by("%class%")=( (flags BAND bit1) || (flags BAND bit2) )?1:0
+		END		
+	END ELSE BEGIN
+		PHP_EACH "%flag_array%" AS class=>flag_num BEGIN
+			bit=2**flag_num
+			SET $unusable_by("%class%")=(flags BAND bit)?1:0
+		END
 	END
 	PHP_EACH unusable_by AS k=>v BEGIN
 		PATCH_IF !v BEGIN
@@ -611,8 +650,9 @@ BEGIN
 	SPRINT usability_string ""
 	SPRINT flag_array "%type%_flags"
 	SPRINT name_array "%type%_names"
+	combined=("%type%" STR_EQ combined_align)
 	SET threshold=$usability_threshold("%type%")
-	LPF itemdesc_get_usability STR_VAR flag_array RET usable_count RET_ARRAY unusable_by END
+	LPF itemdesc_get_usability INT_VAR combined STR_VAR flag_array RET usable_count RET_ARRAY unusable_by END
 	PATCH_IF usable_count<=threshold BEGIN
 		positive=1
 		PHP_EACH unusable_by AS class=>val BEGIN
@@ -634,8 +674,9 @@ BEGIN
 	PHP_EACH usable_list AS name=>discard BEGIN
 		SPRINT usability_string "%usability_string% %name%%WNL%"
 	END
-
 END
+
+
 
 DEFINE_ACTION_MACRO itemdesc_initialize
 BEGIN
@@ -807,12 +848,25 @@ BEGIN
 					SET $lc_align_flags("%align%")=align_flag			
 				END
 			BUT_ONLY
+			COPY - ".../stratagems-inline/itemdesc_combined_align_data" nowhere
+				READ_2DA_ENTRIES_NOW itemdesc_combined_align_data 4
+				FOR (row=0;row<itemdesc_combined_align_data;++row) BEGIN
+					READ_2DA_ENTRY_FORMER itemdesc_combined_align_data row 0 align
+					READ_2DA_ENTRY_FORMER itemdesc_combined_align_data row 1 align_tra_ref
+					SPRINT $combined_align_names("%align%") (AT align_tra_ref)
+					READ_2DA_ENTRY_FORMER itemdesc_combined_align_data row 2 align_flag_1
+					SET $combined_align_flags_lcn("%align%")=align_flag_1		
+					READ_2DA_ENTRY_FORMER itemdesc_combined_align_data row 3 align_flag_2
+					SET $combined_align_flags_gen("%align%")=align_flag_2	
+				END
+			BUT_ONLY
 			ACTION_CLEAR_ARRAY usability_threshold 
 			ACTION_DEFINE_ASSOCIATIVE_ARRAY usability_threshold BEGIN
 				class=>2
 				ge_align=>1
 				lc_align=>1
 				race=>2
+				combined_align=>2
 			END
 		END
 	END
@@ -851,6 +905,23 @@ LAWFUL		304				4
 CHAOTIC		305				0
 LCNEUTRAL	306				3
 >>>>>>>>
+
+
+<<<<<<<<.../stratagems-inline/itemdesc_combined_align_data
+2DA V1.0
+*
+				tra_ref			flag1	flag2	
+LAWFUL_GOOD		311				4		2
+NEUTRAL_GOOD	312				3		2
+CHAOTIC_GOOD	313				0		2
+LAWFUL_NEUTRAL	314				4		5
+NEUTRAL_NEUTRAL	315				3		5
+CHAOTIC_NEUTRAL	316				0		5
+LAWFUL_EVIL		317				4		1
+NEUTRAL_EVIL	318				3		1
+CHAOTIC_EVIL	319				0		1
+>>>>>>>>
+
 <<<<<<<<.../stratagems-inline/itemdesc_race_data
 2DA V1.0
 *
